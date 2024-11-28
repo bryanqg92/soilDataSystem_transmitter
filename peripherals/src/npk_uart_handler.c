@@ -32,11 +32,7 @@
 #include "driver/gpio.h"
 #include "driver/uart.h"
 
-#define NPK_SENSOR_BAUDRATE 9600
-#define NPK_SENSOR_UART UART_NUM_2
-#define NPK_SENSOR_RX_PIN 46
-#define NPK_SENSOR_TX_PIN 45
-#define UART_BUF_SIZE 1024
+
 
 uart_t init_npk_sensor_uart()
 {
