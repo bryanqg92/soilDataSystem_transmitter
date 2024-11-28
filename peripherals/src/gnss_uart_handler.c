@@ -10,11 +10,6 @@
 #include "driver/gpio.h"
 #include "driver/uart.h"
 
-#define GNSS_BAUDRATE 115200 ///< Mandatory baud rate for GNSS communication.
-#define GNSS_UART UART_NUM_1 ///< mandatory UART number for GNSS communication by heltec.
-#define GNSS_RX_PIN 33       ///< Mandatory GPIO pin number for GNSS RX by Heltec.
-#define GNSS_TX_PIN 34       ///< Mandatory GPIO pin number for GNSS TX by Heltec.
-#define GNSS_UART_BUF_SIZE 2000
 
 /**
  * @brief Initializes the UART interface for GNSS communication.

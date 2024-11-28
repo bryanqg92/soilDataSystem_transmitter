@@ -7,6 +7,7 @@
 #include "driver/uart.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "config.h"
 
 typedef uart_port_t uart_port_type;
 

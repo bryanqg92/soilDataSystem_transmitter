@@ -5,6 +5,7 @@
 
 #include "driver/uart.h"
 #include "uart_handler.h"
+#include "config.h"
 
 #ifdef __cplusplus
 extern "C"

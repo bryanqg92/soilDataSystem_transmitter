@@ -77,6 +77,7 @@
 #define TFT_SPI_HANDLER_H_
 
 #include "driver/spi_master.h"
+#include "config.h"
 
 typedef struct
 {
@@ -90,16 +91,7 @@ typedef struct
     int led_k_pin;
 } tft_config_t;
 
-/* These parameters are mandatory for the Heltec board */
-#define TFT_MAX_TRANSFER_SIZE (16 * 320 * 2)
-#define TFT_SPI_CLOCK_SPEED (1 * 1000 * 1000) // 26 MHz
-#define TFT_SPI_HOST SPI3_HOST
-#define TFT_CS_Pin 38
-#define TFT_REST_Pin 39
-#define TFT_DC_Pin 40
-#define TFT_SCLK_Pin 41
-#define TFT_MOSI_Pin 42
-#define TFT_LED_K_Pin 21
+
 
 tft_config_t tft_spi_init(void);
 
