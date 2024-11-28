@@ -1,0 +1,6 @@
+# Espressif IDF build output
+/build/
+/html/
+/latex/
+/.vscode/
+/.devcontainer/

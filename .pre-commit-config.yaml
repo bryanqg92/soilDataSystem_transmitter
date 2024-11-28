@@ -1,0 +1,36 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0  # Usa la versión más reciente
+    hooks:
+      - id: trailing-whitespace  # Elimina espacios en blanco innecesarios
+      - id: end-of-file-fixer    # Asegura que los archivos terminan con una línea vacía
+      - id: check-added-large-files  # Previene agregar archivos grandes por error
+      - id: check-yaml  # Valida sintaxis de archivos YAML (útil para archivos de configuración como `idf_component.yml`)
+      - id: check-case-conflict  # Previene conflictos por nombres de archivos sensibles a mayúsculas/minúsculas
+      - id: check-merge-conflict  # Asegura que no se comitan conflictos de merge no resueltos
+
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v14.0.6  # Cambia a la versión de clang-format que estés usando
+    hooks:
+      - id: clang-format
+        args: ["--style=file"]  # Usa el archivo `.clang-format` para las reglas de estilo
+
+  - repo: local  # Hooks personalizados para ESP-IDF
+    hooks:
+      - id: check-esp-idf-sdkconfig
+        name: Check ESP-IDF sdkconfig consistency
+        entry: python check_sdkconfig.py  # Crea un script para validar el archivo `sdkconfig`
+        language: python
+        files: ^sdkconfig.*$  # Asegúrate de que solo valide archivos `sdkconfig`
+
+      - id: idf-build-check
+        name: ESP-IDF build check
+        entry: idf.py build  # Verifica si el código compila antes de hacer commit
+        language: system
+        pass_filenames: false  # No pasa nombres de archivos; ejecuta `idf.py build` globalmente
+
+      - id: idf-lint-check
+        name: Run ESP-IDF lint
+        entry: clang-tidy -p build $(find . -name '*.c' -or -name '*.h')
+        language: system
+        pass_filenames: false

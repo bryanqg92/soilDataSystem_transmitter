@@ -1,0 +1,22 @@
+# Rutas de entrada
+INPUT = . api app main peripherals
+
+# Buscar recursivamente
+RECURSIVE = YES
+
+# Patrones de archivos a incluir
+FILE_PATTERNS = *.c *.h *.md
+
+# Ignorar directorios innecesarios
+EXCLUDE = build
+
+# Usar README.md como página principal
+USE_MDFILE_AS_MAINPAGE = README.md
+EXTENSION_MAPPING = md=markdown
+
+# Habilitar diagramas con Graphviz
+HAVE_DOT = YES
+
+# Incluir comentarios privados y protegidos (opcional)
+EXTRACT_PRIVATE = YES
+EXTRACT_STATIC = YES
