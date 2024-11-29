@@ -17,6 +17,22 @@ static bool send_request_and_receive_response(uart_t* uart, const uint8_t* reque
 static bool validate_response(uint8_t* response, size_t response_size);
 static void parse_soil_data(const uint8_t* response, SoilData_t* sensor_data);
 
+/**
+ * @brief Inicializa el sensor NPK.
+ *
+ * Esta función envía una solicitud de inicialización al sensor NPK a través de UART y 
+ * espera una respuesta. Verifica si la respuesta es válida y si la inicialización fue exitosa.
+ *
+ * @param uart Puntero a la estructura de UART utilizada para la comunicación con el sensor.
+ * @return true si la inicialización fue exitosa, false en caso contrario.
+ *
+ * La función realiza los siguientes pasos:
+ * 1. Envía una solicitud de inicialización al sensor NPK.
+ * 2. Recibe la respuesta del sensor.
+ * 3. Verifica si la respuesta es válida.
+ * 4. Si la respuesta no es válida, registra un mensaje de error y retorna false.
+ * 5. Si la respuesta es válida, retorna true.
+ */
 bool NPKInit(uart_t* uart)
 {
     uint8_t response_buffer[NPK_REQUEST_SIZE];
@@ -47,6 +63,20 @@ bool NPKInit(uart_t* uart)
     return true;
 }
 
+/**
+ * @brief Envía una solicitud a través de UART y recibe una respuesta.
+ *
+ * Esta función utiliza el manejador de UART para enviar una solicitud y luego
+ * espera una respuesta. Si ocurre algún error durante el envío o la recepción,
+ * se registra un mensaje de error y la función retorna false.
+ *
+ * @param uart Puntero al manejador de UART.
+ * @param request Puntero al buffer que contiene la solicitud a enviar.
+ * @param request_size Tamaño del buffer de solicitud.
+ * @param response_buffer Puntero al buffer donde se almacenará la respuesta recibida.
+ * @param response_size Tamaño del buffer de respuesta.
+ * @return true si la solicitud y la respuesta se manejaron correctamente, false en caso de error.
+ */
 static bool send_request_and_receive_response(uart_t* uart, const uint8_t* request,
                                               size_t request_size, uint8_t* response_buffer,
                                               size_t response_size)
@@ -86,6 +116,16 @@ static bool send_request_and_receive_response(uart_t* uart, const uint8_t* reque
     return true;
 }
 
+/**
+ * @brief Valida la respuesta recibida verificando su CRC.
+ *
+ * Esta función toma una respuesta y su tamaño, y verifica si el CRC de la respuesta es correcto.
+ * Si el CRC es válido, la función retorna true, de lo contrario, retorna false.
+ *
+ * @param response Puntero al buffer que contiene la respuesta a validar.
+ * @param response_size Tamaño del buffer de respuesta.
+ * @return true si el CRC de la respuesta es válido, false en caso contrario.
+ */
 static bool validate_response(uint8_t* response, size_t response_size)
 {
     if (!verifyCRC(response, response_size))
@@ -95,6 +135,24 @@ static bool validate_response(uint8_t* response, size_t response_size)
     return true;
 }
 
+/**
+ * @brief Parsea los datos del sensor de suelo a partir de la respuesta recibida.
+ *
+ * Esta función toma una respuesta en formato de arreglo de bytes y extrae los datos
+ * del sensor de suelo, asignándolos a una estructura SoilData_t.
+ *
+ * @param response Puntero al arreglo de bytes que contiene la respuesta del sensor.
+ * @param sensor_data Puntero a la estructura SoilData_t donde se almacenarán los datos parseados.
+ *
+ * Los datos extraídos incluyen:
+ * - Humedad del suelo (moisture), en porcentaje.
+ * - Temperatura del suelo (temperature), en grados Celsius.
+ * - Conductividad del suelo (conductivity), en µS/cm.
+ * - pH del suelo (pH).
+ * - Nitrógeno en el suelo (nitrogen), en mg/kg.
+ * - Fósforo en el suelo (phosphorus), en mg/kg.
+ * - Potasio en el suelo (potassium), en mg/kg.
+ */
 static void parse_soil_data(const uint8_t* response, SoilData_t* sensor_data)
 {
     sensor_data->moisture = ((response[3] << 8) | response[4]) / 10.0f;
@@ -105,6 +163,22 @@ static void parse_soil_data(const uint8_t* response, SoilData_t* sensor_data)
     sensor_data->phosphorus = (response[13] << 8) | response[14];
     sensor_data->potassium = (response[15] << 8) | response[16];
 }
+
+/**
+ * @brief Tarea para procesar datos del sensor de suelo.
+ *
+ * Esta función se ejecuta en un bucle infinito y realiza las siguientes acciones:
+ * 1. Envía una solicitud a través del puerto UART del sensor y espera una respuesta.
+ * 2. Verifica si la solicitud y la respuesta fueron exitosas.
+ * 3. Si la solicitud y la respuesta fueron exitosas, actualiza el estado del sensor a 1.
+ * 4. Analiza los datos recibidos y los almacena en la estructura de datos del sensor.
+ * 5. Envía los datos procesados a una cola para su posterior uso.
+ * 6. Registra los datos del sensor en el log.
+ * 7. Espera un tiempo determinado antes de repetir el proceso.
+ *
+ * @param soilData Puntero a la estructura de datos del sensor de suelo (SoilData_t).
+ */
+
 
 void Task_processData(void* soilData)
 {

@@ -3,6 +3,21 @@
 #include <stdlib.h>
 #include <string.h>
 
+/**
+ * @brief Ajusta la hora UTC a UTC-5 y realiza los ajustes necesarios en la fecha.
+ *
+ * Esta función toma una hora en formato UTC y la ajusta a la zona horaria UTC-5.
+ * Si la hora ajustada resulta en un cambio de día, mes o año, la función realiza
+ * los ajustes necesarios en la fecha.
+ *
+ * @param hour Puntero a la variable que contiene la hora en formato UTC (0-23).
+ * @param day Puntero a la variable que contiene el día del mes (1-31).
+ * @param month Puntero a la variable que contiene el mes del año (1-12).
+ * @param year Puntero a la variable que contiene el año.
+ *
+ * @note La función considera los años bisiestos para ajustar correctamente el día
+ *       en el mes de febrero.
+ */
 static void adjust_to_utc_minus_5(uint8_t* hour, uint8_t* day, uint8_t* month, uint16_t* year)
 {
     if (*hour < 5)
@@ -43,6 +58,18 @@ static void adjust_to_utc_minus_5(uint8_t* hour, uint8_t* day, uint8_t* month, u
     }
 }
 
+/**
+ * @brief Convierte una coordenada NMEA en grados decimales.
+ *
+ * Esta función toma una cadena de caracteres que representa una coordenada en formato NMEA
+ * y la convierte a un valor de grados decimales. La dirección (N, S, E, W) se utiliza para
+ * determinar si el valor resultante debe ser positivo o negativo.
+ *
+ * @param value Cadena de caracteres que contiene la coordenada en formato NMEA.
+ * @param direction Carácter que indica la dirección de la coordenada ('N' para norte, 'S' para sur,
+ *                  'E' para este, 'W' para oeste).
+ * @return El valor de la coordenada en grados decimales.
+ */
 static float convert_nmea_to_decimal_degrees(const char* value, char direction)
 {
     // Para longitud, los primeros 3 dígitos son grados (074)
@@ -59,6 +86,29 @@ static float convert_nmea_to_decimal_degrees(const char* value, char direction)
     return (direction == 'S' || direction == 'W') ? -decimal : decimal;
 }
 
+/**
+ * @brief Parsea una sentencia RMC (Recommended Minimum Specific GNSS Data) y extrae los datos GNSS.
+ *
+ * Esta función toma una sentencia RMC en formato NMEA y extrae la hora, latitud, longitud y fecha,
+ * almacenando estos valores en una estructura GNSSData_t.
+ *
+ * @param[in] sentence La sentencia RMC en formato NMEA a ser parseada.
+ * @param[out] data Estructura GNSSData_t donde se almacenarán los datos extraídos.
+ * @return true si el parseo fue exitoso, false en caso contrario.
+ *
+ * @note La función ajusta la hora a UTC-5.
+ *
+ * @details
+ * La función divide la sentencia RMC en tokens utilizando la coma (',') como delimitador.
+ * Los campos de interés son:
+ * - Campo 1: Hora (HHMMSS)
+ * - Campo 3: Latitud (en formato NMEA)
+ * - Campo 5: Longitud (en formato NMEA)
+ * - Campo 8: Fecha (DDMMYY)
+ *
+ * La latitud y longitud se convierten a grados decimales utilizando la función convert_nmea_to_decimal_degrees.
+ * La hora se ajusta a UTC-5 utilizando la función adjust_to_utc_minus_5.
+ */
 static bool parse_rmc_sentence(const char* sentence, GNSSData_t* data)
 {
     char* token = strtok((char*)sentence, ",");
@@ -131,6 +181,21 @@ static bool parse_rmc_sentence(const char* sentence, GNSSData_t* data)
     return true;
 }
 
+/**
+ * @brief Parsea una sentencia GGA y extrae datos GNSS.
+ *
+ * Esta función toma una sentencia GGA en formato NMEA y extrae información relevante
+ * como el número de satélites utilizados, la altitud y el estado de la fijación.
+ *
+ * @param[in] sentence Puntero a la cadena de caracteres que contiene la sentencia GGA.
+ * @param[out] data Puntero a una estructura GNSSData_t donde se almacenarán los datos extraídos.
+ *
+ * @return true si el análisis se realizó correctamente, false si hubo un error (por ejemplo, punteros nulos).
+ *
+ * @note La función espera que la sentencia GGA esté separada por comas.
+ * 
+ * @warning La función modifica la cadena de entrada 'sentence' debido al uso de strtok.
+ */
 static bool parse_gga_sentence(const char* sentence, GNSSData_t* data)
 {
     if (sentence == NULL || data == NULL)
@@ -165,6 +230,21 @@ static bool parse_gga_sentence(const char* sentence, GNSSData_t* data)
     return true;
 }
 
+/**
+ * @brief Parsea un buffer GNSS y extrae datos RMC y GGA.
+ *
+ * Esta función toma un buffer que contiene datos GNSS en formato NMEA y extrae
+ * la información de las sentencias RMC y GGA, almacenándola en una estructura
+ * GNSSData_t proporcionada por el usuario.
+ *
+ * @param buffer Puntero al buffer que contiene los datos GNSS en formato NMEA.
+ * @param length Longitud del buffer.
+ * @param gnss_data Puntero a la estructura GNSSData_t donde se almacenarán los datos extraídos.
+ * @return true si ambas sentencias RMC y GGA fueron parseadas correctamente, false en caso contrario.
+ *
+ * @note La función espera que las sentencias NMEA estén separadas por "\r\n".
+ * @note Si el buffer o gnss_data son NULL, la función registrará un error y retornará false.
+ */
 bool parse_gnss_buffer(const uint8_t* buffer, uint16_t length, GNSSData_t* gnss_data)
 {
     if (buffer == NULL || gnss_data == NULL)

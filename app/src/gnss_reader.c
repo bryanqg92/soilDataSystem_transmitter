@@ -3,6 +3,27 @@
 #include "logger.h"
 #include <string.h>
 
+/**
+ * @brief Tarea para leer datos GNSS desde UART y procesarlos.
+ *
+ * Esta tarea lee continuamente datos GNSS desde un puerto UART especificado, analiza los datos,
+ * y envía los datos GNSS analizados a una cola para su posterior procesamiento. La tarea se ejecuta en un
+ * bucle infinito con un retraso de 1000 milisegundos entre cada operación de lectura.
+ *
+ * @param pvParameters Puntero al contexto GNSS (GNSSElements_t) que contiene el puerto UART
+ *                     y otra información necesaria para el procesamiento de datos GNSS.
+ *
+ * La función realiza los siguientes pasos:
+ * 1. Limpia la estructura de datos GNSS.
+ * 2. Lee datos desde el puerto UART en un búfer.
+ * 3. Analiza los datos GNSS del búfer.
+ * 4. Envía los datos GNSS analizados a una cola.
+ * 5. Registra los datos GNSS incluyendo latitud, longitud, altitud, fecha, hora, número de satélites utilizados y estado de fijación.
+ *
+ * Si los datos no se pueden enviar a la cola, se registra un mensaje de error.
+ *
+ * @note Esta función está diseñada para ejecutarse como una tarea de FreeRTOS.
+ */
 const char* GNSS_READER = "[GNSS_READER]";
 void Task_GNSSData(void* pvParameters)
 {

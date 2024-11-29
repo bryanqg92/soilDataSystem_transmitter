@@ -18,6 +18,25 @@ static const uint16_t SOIL_SENSOR_ICON[] = {0X0D, 0X69, 0X5A, 0X2C, 0X08, 0X08, 
 static const uint16_t GPS_ICON[] = {0x1C, 0x3E, 0x7F, 0x63, 0x63, 0X77, 0X3E, 0X1C, 0X08, 0X08};
 // static const uint16_t LORA_ICON[] = {0X22,0X49,0X49,0X22,0X00,0X08,0X08,0X08,0X1C,0X3E};
 
+/**
+ * @file tft_manager.c
+ * @brief Gestión de las regiones de la pantalla TFT.
+ *
+ * Este archivo contiene la definición de las regiones de la pantalla TFT y sus coordenadas.
+ * Las regiones están definidas en la enumeración `tft_regions` y sus coordenadas están
+ * almacenadas en el array `tft_region_coords`.
+ *
+ * Enumeración `tft_regions`: Regiones de la pantalla TFT. De los datos de la aplicación
+ *
+ * Estructura `tft_cords_t`:
+ * - x1: Coordenada x inicial de la región.
+ * - y1: Coordenada y inicial de la región.
+ * - x2: Coordenada x final de la región.
+ * - y2: Coordenada y final de la región.
+ *
+ * Array `tft_region_coords`:
+ * - Almacena las coordenadas de cada región definida en `tft_regions`.
+ */
 typedef enum
 {
     MODE_REGION,
@@ -57,7 +76,8 @@ const tft_cords_t tft_region_coords[TFT_REGION_COUNT] = {
     [CONDUCTIVITY_REGION] = {.x1 = 1, .y1 = 61, .x2 = 50, .y2 = 80},
     [NITROGEN_REGION] = {.x1 = 55, .y1 = 45, .x2 = 140, .y2 = 54},
     [PHOSPHORUS_REGION] = {.x1 = 55, .y1 = 55, .x2 = 140, .y2 = 64},
-    [POTASSIUM_REGION] = {.x1 = 55, .y1 = 65, .x2 = 140, .y2 = 80}};
+    [POTASSIUM_REGION] = {.x1 = 55, .y1 = 65, .x2 = 140, .y2 = 80}
+    };
 
 static void draw_icon(ST7735_Config* config, uint16_t x, uint16_t y, const uint16_t* icon,
                       uint16_t color);
@@ -118,6 +138,19 @@ void Task_TFTDisplay(void* pvParameters)
     }
 }
 
+/**
+ * @brief Dibuja un ícono en una posición específica en la pantalla.
+ *
+ * Esta función toma una configuración de pantalla ST7735, coordenadas x e y, 
+ * un ícono representado como un array de uint16_t y un color, y dibuja el ícono 
+ * en la posición especificada en la pantalla.
+ *
+ * @param config Puntero a la configuración de la pantalla ST7735.
+ * @param x Coordenada x donde se dibujará el ícono.
+ * @param y Coordenada y donde se dibujará el ícono.
+ * @param icon Puntero al array que representa el ícono a dibujar.
+ * @param color Color que se usará para los píxeles del ícono.
+ */
 // Function to draw an icon at a specific position
 static void draw_icon(ST7735_Config* config, uint16_t x, uint16_t y, const uint16_t* icon,
                       uint16_t color)
@@ -136,12 +169,39 @@ static void draw_icon(ST7735_Config* config, uint16_t x, uint16_t y, const uint1
     }
 }
 
+/**
+ * @brief Escribe datos en la pantalla TFT.
+ *
+ * Esta función utiliza la configuración del controlador ST7735 para escribir
+ * una cadena de texto en la pantalla TFT en las coordenadas especificadas,
+ * con el color de texto y de fondo proporcionados, y utilizando la fuente
+ * especificada.
+ *
+ * @param config Puntero a la configuración del controlador ST7735.
+ * @param data Cadena de texto a escribir en la pantalla.
+ * @param cords Puntero a una estructura que contiene las coordenadas (x1, y1)
+ *              donde se escribirá el texto.
+ * @param color Color del texto.
+ * @param bgcolor Color de fondo del texto.
+ * @param font Fuente a utilizar para el texto.
+ */
 static void write_tft_data(ST7735_Config* config, const char* data, const tft_cords_t* cords,
                            uint16_t color, uint16_t bgcolor, FontDef font)
 {
     st7735_write_string(config, cords->x1, cords->y1, data, font, color, bgcolor);
 }
 
+/**
+ * @brief Actualiza los elementos del TFT con los datos GNSS proporcionados.
+ *
+ * Esta función toma los datos GNSS y los muestra en la pantalla TFT. Si el estado de fijación
+ * GNSS es válido (fix_status == 1), se muestran los datos reales de fecha, hora, altitud,
+ * latitud y longitud. Si el estado de fijación no es válido, se muestra un icono de GPS en
+ * rojo que parpadea y se muestran valores predeterminados.
+ *
+ * @param gnss_data Puntero a la estructura que contiene los datos GNSS.
+ * @param tft_elements Puntero a la estructura que contiene la configuración y elementos del TFT.
+ */
 static void GNSSDataToTFT(GNSSData_t* gnss_data, TFTElements_t* tft_elements)
 {
     char temp_data_buffer[40];
@@ -207,6 +267,19 @@ static void GNSSDataToTFT(GNSSData_t* gnss_data, TFTElements_t* tft_elements)
     }
 }
 
+/**
+ * @brief Actualiza los elementos del TFT con los datos del suelo.
+ *
+ * Esta función toma los datos del suelo proporcionados y actualiza los elementos
+ * correspondientes en la pantalla TFT. Dependiendo del estado del sensor de suelo,
+ * se dibuja un ícono en la pantalla. Además, se muestran los valores de temperatura,
+ * humedad, conductividad, pH y nutrientes (nitrógeno, fósforo y potasio) en sus
+ * respectivas regiones de la pantalla.
+ *
+ * @param soil_data Puntero a la estructura SoilData_t que contiene los datos del suelo.
+ * @param tft_elements Puntero a la estructura TFTElements_t que contiene la configuración
+ *                     y elementos de la pantalla TFT.
+ */
 static void SoilDataToTFT(SoilData_t* soil_data, TFTElements_t* tft_elements)
 {
     char temp_data_buffer[40];
