@@ -112,28 +112,31 @@ void Task_TFTDisplay(void* pvParameters)
     // char temp_data_buffer[20];
     while (1)
     {
-
-        // recibir de las colas
-        if (xQueueReceive(xQueueGNSSData, &gnss_task_data, 0) == pdTRUE)
+        if (xSemaphoreTake(xSemaphoreData, portMAX_DELAY) == pdTRUE)
         {
-            GNSSDataToTFT(&gnss_task_data, tft_elements);
-        }
+            // recibir de las colas
+            if (xQueueReceive(xQueueGNSSData, &gnss_task_data, 0) == pdTRUE)
+            {
+                GNSSDataToTFT(&gnss_task_data, tft_elements);
+            }
 
-        if (xQueueReceive(xQueueSoilData, &soil_task_data, 0) == pdTRUE)
-        {
-            SoilDataToTFT(&soil_task_data, tft_elements);
-        }
-        // write_tft_data(&tft_elements->tft_config, "EXT", &tft_region_coords[MODE_REGION],
-        // ST7735_WHITE, ST7735_BLACK, Font_7x10);
-        //// Draw GPS icon
-        //
-        //// Draw Soil Sensor icon
-        // draw_icon(&tft_elements->tft_config, tft_region_coords[SOIL_SENSOR_ICON_REGION].x1,
-        // tft_region_coords[SOIL_SENSOR_ICON_REGION].y1, SOIL_SENSOR_ICON, ST7735_GREEN);
-        //// Draw LoRa icon
-        // draw_icon(&tft_elements->tft_config, tft_region_coords[LORA_ICON_REGION].x1,
-        // tft_region_coords[LORA_ICON_REGION].y1, LORA_ICON, ST7735_CYAN);
+            if (xQueueReceive(xQueueSoilData, &soil_task_data, 0) == pdTRUE)
+            {
+                SoilDataToTFT(&soil_task_data, tft_elements);
+            }
 
+            xSemaphoreGive(xSemaphoreData);
+            // write_tft_data(&tft_elements->tft_config, "EXT", &tft_region_coords[MODE_REGION],
+            // ST7735_WHITE, ST7735_BLACK, Font_7x10);
+            //// Draw GPS icon
+            //
+            //// Draw Soil Sensor icon
+            // draw_icon(&tft_elements->tft_config, tft_region_coords[SOIL_SENSOR_ICON_REGION].x1,
+            // tft_region_coords[SOIL_SENSOR_ICON_REGION].y1, SOIL_SENSOR_ICON, ST7735_GREEN);
+            //// Draw LoRa icon
+            // draw_icon(&tft_elements->tft_config, tft_region_coords[LORA_ICON_REGION].x1,
+            // tft_region_coords[LORA_ICON_REGION].y1, LORA_ICON, ST7735_CYAN);
+        }
         vTaskDelay(pdMS_TO_TICKS(1000)); // Delay for 1 second
     }
 }

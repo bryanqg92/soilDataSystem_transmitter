@@ -1,6 +1,6 @@
 /* vim: set ai et ts=4 sw=4: */
-#ifndef __HT_ST7735_FONTS_H__
-#define __HT_ST7735_FONTS_H__
+#ifndef HT_ST7735_FONTS_H
+#define HT_ST7735_FONTS_H
 
 #include <stdint.h>
 

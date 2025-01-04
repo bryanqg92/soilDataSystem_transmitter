@@ -2,16 +2,17 @@
 #include "logger.h"
 #include "npk_uart_handler.h"
 
+#include "api_debounce.h"
 #include "app.h"
+#include "buttons_manager.h"
 #include "gnss_reader.h"
 #include "shared_data.h"
 #include "soil_sensor_reader.h"
 #include "tft_manager.h"
 
+#include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-
-#include "driver/gpio.h"
 
 #define VGNSS_CTRL 3
 
@@ -21,16 +22,17 @@ static void soil_sensor_init(void);
 static void gnss_sensor_init(void);
 static void tft_display_init(void);
 
-TaskHandle_t taskProcessData_h;
-TaskHandle_t taskGNSSData_h;
-TaskHandle_t taskTFTDisplay_h;
+TaskHandle_t taskProcessData_h, taskGNSSData_h, taskTFTDisplay_h;
 
 SoilData_t soilData;
 GNSSElements_t gnssContext;
 TFTElements_t tft_context;
 
-QueueHandle_t xQueueGNSSData;
-QueueHandle_t xQueueSoilData;
+QueueHandle_t xQueueGNSSData, xQueueSoilData;
+SemaphoreHandle_t xSemaphoreData;
+
+button_app_t cat0_btn, cat1_btn;
+buttons_params_t buttons_params;
 
 void app_init(void)
 {
@@ -39,6 +41,7 @@ void app_init(void)
 
     xQueueGNSSData = xQueueCreate(1, sizeof(GNSSData_t));
     configASSERT(xQueueGNSSData != NULL);
+
     xQueueSoilData = xQueueCreate(1, sizeof(SoilData_t));
     configASSERT(xQueueSoilData != NULL);
 
@@ -48,21 +51,31 @@ void app_init(void)
     gnss_sensor_init();
     tft_display_init();
     soil_sensor_init();
+    buttons_init(&cat0_btn, &cat1_btn);
+
+    buttons_params.cat0_btn = &cat0_btn;
+    buttons_params.cat1_btn = &cat1_btn;
+
+    ret = xTaskCreate(Task_buttons, "ButtonsTask", 3056, (void*)&buttons_params,
+                      (tskIDLE_PRIORITY + 2ul), NULL);
+    configASSERT(pdPASS == ret);
 
     ret = xTaskCreate(Task_processData, "ProcessDataTask", 3056, (void*)&soilData,
                       (tskIDLE_PRIORITY + 1ul), &taskProcessData_h);
-
     configASSERT(pdPASS == ret);
 
     ret = xTaskCreate(Task_GNSSData, "GNSSDataTask", 10000, (void*)&gnssContext,
                       (tskIDLE_PRIORITY + 1ul), &taskGNSSData_h);
-
     configASSERT(pdPASS == ret);
 
     ret = xTaskCreate(Task_TFTDisplay, "TFTDisplayTask", 3056, (void*)&tft_context,
                       (tskIDLE_PRIORITY + 1ul), &taskTFTDisplay_h);
-
     configASSERT(pdPASS == ret);
+
+    xSemaphoreData = xSemaphoreCreateBinary();
+    configASSERT(xSemaphoreData != NULL);
+
+    xSemaphoreGive(xSemaphoreData);
 
     ESP_LOGI(APP, "Task created successfully");
 }

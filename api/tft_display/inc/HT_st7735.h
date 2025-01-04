@@ -1,6 +1,6 @@
 /* vim: set ai et ts=4 sw=4: */
-#ifndef __HT_ST7735_H__
-#define __HT_ST7735_H__
+#ifndef HT_ST7735_H
+#define HT_ST7735_H
 
 #include "HT_st7735_fonts.h"
 #include "driver/spi_master.h"
