@@ -1,7 +1,7 @@
 #include "tft_spi_handler.h"
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
-#include "logger.h"
+#include "esp_log.h"
 
 static const char* TFT_HANDLER = "TFT_SPI";
 
@@ -99,7 +99,7 @@ tft_config_t tft_spi_init(void)
                                             .pre_cb = NULL,
                                             .post_cb = NULL};
 
-    ESP_LOGI(TFT_HANDLER, "Adding SPI device...");
+    ESP_LOGD(TFT_HANDLER, "Adding SPI device...");
     spi_device_handle_t spi_handle;
     esp_err_t err = spi_bus_add_device(tft_pins.host, &devcfg, &spi_handle);
     if (err != ESP_OK)
@@ -110,7 +110,7 @@ tft_config_t tft_spi_init(void)
     tft_pins.spi_handle = spi_handle; // Asigna el handle del dispositivo SPI
 
     // Configuración de los pines restantes
-    ESP_LOGI(TFT_HANDLER, "Configuring backlight and reset...");
+    ESP_LOGD(TFT_HANDLER, "Configuring backlight and reset...");
     gpio_set_level(tft_pins.led_k_pin, 1); // Enciende el backlight
 
     gpio_set_level(tft_pins.rst_pin, 1);

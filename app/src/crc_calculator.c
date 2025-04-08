@@ -1,5 +1,5 @@
 #include "crc_calculator.h"
-#include "logger.h"
+#include "esp_log.h"
 
 /**
  * @brief Calcula el CRC (Cyclic Redundancy Check) utilizando el algoritmo Modbus.

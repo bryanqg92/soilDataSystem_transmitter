@@ -3,11 +3,10 @@ file(GLOB_RECURSE SOURCES
     "../app/src/*.c"
     "../api/api_lora/src/*.c"
     "../api/button_debounce/*.c"
-    "../api/uart/src/*.c"
     "../api/gnss/src/*.c"
-    "../api/tft_display/src/*.c"
     "../api/peripherals/src/*.c"
-    "../api/sd_card/src/*.c"
+    "../api/tft_display/src/*.c"
+    "../api/uart/src/*.c"
 )
 
 # Encontrar todos los directorios que contienen headers
@@ -16,11 +15,10 @@ file(GLOB INCLUDE_DIRS
     "../api/api_lora/inc"
     "../api/button_debounce/inc"
     "../api/commons/inc"
-    "../api/uart/inc"
     "../api/gnss/inc"
-    "../api/tft_display/inc"
     "../api/peripherals/inc"
-    "../api/sd_card/inc"
+    "../api/tft_display/inc"
+    "../api/uart/inc"
 )
 
 idf_component_register(

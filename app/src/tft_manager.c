@@ -1,7 +1,7 @@
 #include "tft_manager.h"
 #include "HT_st7735.h"
 #include "app.h"
-#include "logger.h"
+#include "esp_log.h"
 
 #define ICON_WIDTH 7
 #define ICON_HEIGHT 10
@@ -14,6 +14,7 @@ typedef struct
     int y2;
 } tft_cords_t;
 
+const char* TFT_DISPLAY = "==> TFT DISPLAY";
 static const uint16_t SOIL_SENSOR_ICON[] = {0X0D, 0X69, 0X5A, 0X2C, 0X08, 0X08, 0X08, 0X2A, 0X7F};
 static const uint16_t GPS_ICON[] = {0x1C, 0x3E, 0x7F, 0x63, 0x63, 0X77, 0X3E, 0X1C, 0X08, 0X08};
 // static const uint16_t LORA_ICON[] = {0X22,0X49,0X49,0X22,0X00,0X08,0X08,0X08,0X1C,0X3E};
@@ -76,19 +77,19 @@ const tft_cords_t tft_region_coords[TFT_REGION_COUNT] = {
     [CONDUCTIVITY_REGION] = {.x1 = 1, .y1 = 61, .x2 = 50, .y2 = 80},
     [NITROGEN_REGION] = {.x1 = 55, .y1 = 45, .x2 = 140, .y2 = 54},
     [PHOSPHORUS_REGION] = {.x1 = 55, .y1 = 55, .x2 = 140, .y2 = 64},
-    [POTASSIUM_REGION] = {.x1 = 55, .y1 = 65, .x2 = 140, .y2 = 80}
-    };
+    [POTASSIUM_REGION] = {.x1 = 55, .y1 = 65, .x2 = 140, .y2 = 80}};
 
 static void draw_icon(ST7735_Config* config, uint16_t x, uint16_t y, const uint16_t* icon,
                       uint16_t color);
 static void write_tft_data(ST7735_Config* config, const char* data, const tft_cords_t* cords,
                            uint16_t color, uint16_t bgcolor, FontDef font);
-static void GNSSDataToTFT(GNSSData_t* gnss_data, TFTElements_t* tft_elements);
-static void SoilDataToTFT(SoilData_t* soil_data, TFTElements_t* tft_elements);
+static void GNSSDataToTFT(GNSSData_t* gnss_data, TFTElements_t* tft_elements, bool blink_state);
+static void SoilDataToTFT(SoilData_t* soil_data, TFTElements_t* tft_elements, bool blink_state);
+static bool validate_soil_data(SoilData_t* soil_data);
+static bool validate_gnss_data(GNSSData_t* gnss_data);
 
 void Task_TFTDisplay(void* pvParameters)
 {
-
     TFTElements_t* tft_elements = (TFTElements_t*)pvParameters;
 
     tft_elements->tft_config = (ST7735_Config){.width = ST7735_WIDTH,
@@ -99,53 +100,127 @@ void Task_TFTDisplay(void* pvParameters)
                                                .cs_pin = tft_elements->tft_host.cs_pin,
                                                .dc_pin = tft_elements->tft_host.dc_pin,
                                                .led_k_pin = tft_elements->tft_host.led_k_pin,
-                                               .rst_pin = tft_elements->tft_host.rst_pin
-
-    };
+                                               .rst_pin = tft_elements->tft_host.rst_pin};
 
     GNSSData_t gnss_task_data;
     SoilData_t soil_task_data;
+    bool has_gnss_data = false;
+    bool has_soil_data = false;
+    bool blink_state = false;
+    TickType_t last_blink_time = xTaskGetTickCount();
 
+    ESP_LOGI(TFT_DISPLAY, "Initializing TFT display");
     st7735_init(&tft_elements->tft_config);
     st7735_fill_screen(&tft_elements->tft_config, ST7735_BLACK);
+    ESP_LOGI(TFT_DISPLAY, "TFT display initialized successfully");
 
-    // char temp_data_buffer[20];
     while (1)
     {
-        if (xSemaphoreTake(xSemaphoreData, portMAX_DELAY) == pdTRUE)
+        // Actualizar estado de parpadeo cada 500ms
+        TickType_t current_time = xTaskGetTickCount();
+        if ((current_time - last_blink_time) >= pdMS_TO_TICKS(500))
         {
-            // recibir de las colas
-            if (xQueueReceive(xQueueGNSSData, &gnss_task_data, 0) == pdTRUE)
-            {
-                GNSSDataToTFT(&gnss_task_data, tft_elements);
-            }
-
-            if (xQueueReceive(xQueueSoilData, &soil_task_data, 0) == pdTRUE)
-            {
-                SoilDataToTFT(&soil_task_data, tft_elements);
-            }
-
-            xSemaphoreGive(xSemaphoreData);
-            // write_tft_data(&tft_elements->tft_config, "EXT", &tft_region_coords[MODE_REGION],
-            // ST7735_WHITE, ST7735_BLACK, Font_7x10);
-            //// Draw GPS icon
-            //
-            //// Draw Soil Sensor icon
-            // draw_icon(&tft_elements->tft_config, tft_region_coords[SOIL_SENSOR_ICON_REGION].x1,
-            // tft_region_coords[SOIL_SENSOR_ICON_REGION].y1, SOIL_SENSOR_ICON, ST7735_GREEN);
-            //// Draw LoRa icon
-            // draw_icon(&tft_elements->tft_config, tft_region_coords[LORA_ICON_REGION].x1,
-            // tft_region_coords[LORA_ICON_REGION].y1, LORA_ICON, ST7735_CYAN);
+            blink_state = !blink_state;
+            last_blink_time = current_time;
         }
-        vTaskDelay(pdMS_TO_TICKS(1000)); // Delay for 1 second
+
+        // Intentar recibir datos GNSS sin bloqueo prolongado
+        if (xQueueReceive(xQueueGNSSData, &gnss_task_data, 0) == pdTRUE)
+        {
+            has_gnss_data = validate_gnss_data(&gnss_task_data);
+            ESP_LOGD(TFT_DISPLAY, "Received GNSS data, valid: %d", has_gnss_data);
+        }
+
+        // Intentar recibir datos del suelo sin bloqueo
+        if (xQueueReceive(xQueueSoilData, &soil_task_data, 0) == pdTRUE)
+        {
+            has_soil_data = validate_soil_data(&soil_task_data);
+            ESP_LOGD(TFT_DISPLAY, "Received Soil data, valid: %d", has_soil_data);
+        }
+
+        // Actualizar display con datos GNSS
+        if (has_gnss_data)
+        {
+            GNSSDataToTFT(&gnss_task_data, tft_elements, blink_state);
+        }
+        else
+        {
+            // Pasar NULL para indicar que no tenemos datos válidos
+            GNSSDataToTFT(NULL, tft_elements, blink_state);
+        }
+
+        // Actualizar display con datos de suelo
+        if (has_soil_data)
+        {
+            SoilDataToTFT(&soil_task_data, tft_elements, blink_state);
+        }
+        else
+        {
+            // Pasar NULL para indicar que no tenemos datos válidos
+            SoilDataToTFT(NULL, tft_elements, blink_state);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(100)); // Más responsivo pero sin sobrecargar el SPI
     }
+}
+
+/**
+ * @brief Valida los datos del sensor de suelo
+ * @param soil_data Puntero a los datos del sensor de suelo
+ * @return true si los datos son válidos, false en caso contrario
+ */
+static bool validate_soil_data(SoilData_t* soil_data)
+{
+    if (soil_data == NULL)
+        return false;
+
+    // Validar rangos de los datos del sensor
+    if (soil_data->temperature < -20.0f || soil_data->temperature > 80.0f)
+        return false;
+    if (soil_data->moisture < 0.0f || soil_data->moisture > 100.0f)
+        return false;
+    if (soil_data->conductivity < 0 || soil_data->conductivity > 20000)
+        return false;
+    if (soil_data->pH < 0.0f || soil_data->pH > 14.0f)
+        return false;
+
+    return true;
+}
+
+/**
+ * @brief Valida los datos GNSS
+ * @param gnss_data Puntero a los datos GNSS
+ * @return true si los datos son válidos, false en caso contrario
+ */
+static bool validate_gnss_data(GNSSData_t* gnss_data)
+{
+    if (gnss_data == NULL)
+        return false;
+
+    // Comprobar rango básico de coordenadas
+    if (gnss_data->latitude < -90.0f || gnss_data->latitude > 90.0f)
+        return false;
+    if (gnss_data->longitude < -180.0f || gnss_data->longitude > 180.0f)
+        return false;
+
+    // Comprobar valores razonables para fecha/hora
+    if (gnss_data->year < 2000 || gnss_data->year > 2100)
+        return false;
+    if (gnss_data->month < 1 || gnss_data->month > 12)
+        return false;
+    if (gnss_data->day < 1 || gnss_data->day > 31)
+        return false;
+    if (gnss_data->hour > 23 || gnss_data->minute > 59)
+        return false;
+
+    return true;
 }
 
 /**
  * @brief Dibuja un ícono en una posición específica en la pantalla.
  *
- * Esta función toma una configuración de pantalla ST7735, coordenadas x e y, 
- * un ícono representado como un array de uint16_t y un color, y dibuja el ícono 
+ * Esta función toma una configuración de pantalla ST7735, coordenadas x e y,
+ * un ícono representado como un array de uint16_t y un color, y dibuja el ícono
  * en la posición especificada en la pantalla.
  *
  * @param config Puntero a la configuración de la pantalla ST7735.
@@ -154,20 +229,22 @@ void Task_TFTDisplay(void* pvParameters)
  * @param icon Puntero al array que representa el ícono a dibujar.
  * @param color Color que se usará para los píxeles del ícono.
  */
-// Function to draw an icon at a specific position
 static void draw_icon(ST7735_Config* config, uint16_t x, uint16_t y, const uint16_t* icon,
                       uint16_t color)
 {
     for (int i = 0; i < ICON_HEIGHT; i++)
     {
-        uint16_t row = icon[i];
+        uint16_t line = icon[i];
         for (int j = 0; j < ICON_WIDTH; j++)
         {
-            uint16_t pixel_color = (row & (1 << (ICON_WIDTH - 1 - j)))
-                                       ? color
-                                       : 0x0000; // Use provided color for 1, Black for 0
-            // Draw the pixel at (x + j, y + i)
-            st7735_draw_pixel(config, x + j, y + i, pixel_color);
+            if (line & (1 << j))
+            {
+                st7735_draw_pixel(config, x + j, y + i, color);
+            }
+            else
+            {
+                st7735_draw_pixel(config, x + j, y + i, ST7735_BLACK);
+            }
         }
     }
 }
@@ -202,71 +279,63 @@ static void write_tft_data(ST7735_Config* config, const char* data, const tft_co
  * latitud y longitud. Si el estado de fijación no es válido, se muestra un icono de GPS en
  * rojo que parpadea y se muestran valores predeterminados.
  *
- * @param gnss_data Puntero a la estructura que contiene los datos GNSS.
+ * @param gnss_data Puntero a la estructura que contiene los datos GNSS. Puede ser NULL.
  * @param tft_elements Puntero a la estructura que contiene la configuración y elementos del TFT.
+ * @param blink_state Estado actual del parpadeo (true=visible, false=invisible)
  */
-static void GNSSDataToTFT(GNSSData_t* gnss_data, TFTElements_t* tft_elements)
+static void GNSSDataToTFT(GNSSData_t* gnss_data, TFTElements_t* tft_elements, bool blink_state)
 {
     char temp_data_buffer[40];
 
-    if (gnss_data->fix_status == 1)
+    if (gnss_data != NULL && gnss_data->fix_status == 1)
     {
+        // Dibujar ícono GPS fijo (verde)
         draw_icon(&tft_elements->tft_config, tft_region_coords[GPS_ICON_REGION].x1,
                   tft_region_coords[GPS_ICON_REGION].y1, GPS_ICON, ST7735_GREEN);
 
-        // Write date
-        sprintf(temp_data_buffer, "%02d/%02d/%d ", gnss_data->day, gnss_data->month,
+        // Mostrar fecha y hora
+        sprintf(temp_data_buffer, "%02d/%02d/%d", gnss_data->day, gnss_data->month,
                 gnss_data->year);
         write_tft_data(&tft_elements->tft_config, temp_data_buffer, &tft_region_coords[DATE_REGION],
-                       ST7735_WHITE, ST7735_BLACK, Font_7x10);
-        // Write time
-        sprintf(temp_data_buffer, "%02d:%02d    ", gnss_data->hour, gnss_data->minute);
+                       ST7735_WHITE, ST7735_NAVY, Font_7x10);
+
+        sprintf(temp_data_buffer, "%02d:%02d", gnss_data->hour, gnss_data->minute);
         write_tft_data(&tft_elements->tft_config, temp_data_buffer, &tft_region_coords[TIME_REGION],
-                       ST7735_WHITE, ST7735_BLACK, Font_7x10);
-        // Write altitude
-        sprintf(temp_data_buffer, "A: %d", (uint16_t)gnss_data->altitude);
+                       ST7735_WHITE, ST7735_NAVY, Font_7x10);
+
+        // Mostrar altitud
+        sprintf(temp_data_buffer, "A: %.1f", gnss_data->altitude);
         write_tft_data(&tft_elements->tft_config, temp_data_buffer,
-                       &tft_region_coords[ALTITUDE_REGION], ST7735_WHITE, ST7735_BLACK, Font_7x10);
-        // Write latitude
-        sprintf(temp_data_buffer, " Lt: %.6f", gnss_data->latitude);
+                       &tft_region_coords[ALTITUDE_REGION], ST7735_WHITE, ST7735_NAVY, Font_7x10);
+
+        // Mostrar latitud
+        sprintf(temp_data_buffer, "Lat: %.6f", gnss_data->latitude);
         write_tft_data(&tft_elements->tft_config, temp_data_buffer,
-                       &tft_region_coords[LATITUDE_REGION], ST7735_WHITE, ST7735_BLACK, Font_7x10);
-        // Write longitude
-        sprintf(temp_data_buffer, " Ln: %.5f", gnss_data->longitude);
+                       &tft_region_coords[LATITUDE_REGION], ST7735_WHITE, ST7735_NAVY, Font_7x10);
+
+        // Mostrar longitud
+        sprintf(temp_data_buffer, "Lon: %.6f", gnss_data->longitude);
         write_tft_data(&tft_elements->tft_config, temp_data_buffer,
-                       &tft_region_coords[LONGITUDE_REGION], ST7735_WHITE, ST7735_BLACK, Font_7x10);
+                       &tft_region_coords[LONGITUDE_REGION], ST7735_WHITE, ST7735_NAVY, Font_7x10);
     }
     else
     {
-        static TickType_t last_toggle_time = 0;
-        TickType_t current_time = xTaskGetTickCount();
-        static bool toggle = false;
-
-        if ((current_time - last_toggle_time) >= pdMS_TO_TICKS(100))
-        {
-            toggle = !toggle;
-            last_toggle_time = current_time;
-        }
-
-        uint16_t color = toggle ? ST7735_RED : ST7735_BLACK;
+        // Sin fix GPS, parpadear ícono rojo
+        uint16_t color = blink_state ? ST7735_RED : ST7735_BLACK;
         draw_icon(&tft_elements->tft_config, tft_region_coords[GPS_ICON_REGION].x1,
                   tft_region_coords[GPS_ICON_REGION].y1, GPS_ICON, color);
 
-        // Write default date
-        write_tft_data(&tft_elements->tft_config, "00/00/00", &tft_region_coords[DATE_REGION],
-                       ST7735_WHITE, ST7735_BLACK, Font_7x10);
-        // Write default time
-        write_tft_data(&tft_elements->tft_config, "00:00", &tft_region_coords[TIME_REGION],
-                       ST7735_WHITE, ST7735_BLACK, Font_7x10);
-        // Write default altitude
-        write_tft_data(&tft_elements->tft_config, "A: 0   ", &tft_region_coords[ALTITUDE_REGION],
-                       ST7735_WHITE, ST7735_BLACK, Font_7x10);
-        // Write default latitude
-        write_tft_data(&tft_elements->tft_config, "Lt: 000.00000",
-                       &tft_region_coords[LATITUDE_REGION], ST7735_WHITE, ST7735_BLACK, Font_7x10);
-        // Write default longitude
-        write_tft_data(&tft_elements->tft_config, "Ln: 000.00000",
-                       &tft_region_coords[LONGITUDE_REGION], ST7735_WHITE, ST7735_BLACK, Font_7x10);
+        // Mostrar valores predeterminados
+        write_tft_data(&tft_elements->tft_config, "--/--/----", &tft_region_coords[DATE_REGION],
+                       ST7735_RED, ST7735_BLACK, Font_7x10);
+        write_tft_data(&tft_elements->tft_config, "--:--", &tft_region_coords[TIME_REGION],
+                       ST7735_RED, ST7735_BLACK, Font_7x10);
+        write_tft_data(&tft_elements->tft_config, "A: ---", &tft_region_coords[ALTITUDE_REGION],
+                       ST7735_RED, ST7735_BLACK, Font_7x10);
+        write_tft_data(&tft_elements->tft_config, "Lat: ---", &tft_region_coords[LATITUDE_REGION],
+                       ST7735_RED, ST7735_BLACK, Font_7x10);
+        write_tft_data(&tft_elements->tft_config, "Lon: ---", &tft_region_coords[LONGITUDE_REGION],
+                       ST7735_RED, ST7735_BLACK, Font_7x10);
     }
 }
 
@@ -274,63 +343,80 @@ static void GNSSDataToTFT(GNSSData_t* gnss_data, TFTElements_t* tft_elements)
  * @brief Actualiza los elementos del TFT con los datos del suelo.
  *
  * Esta función toma los datos del suelo proporcionados y actualiza los elementos
- * correspondientes en la pantalla TFT. Dependiendo del estado del sensor de suelo,
- * se dibuja un ícono en la pantalla. Además, se muestran los valores de temperatura,
- * humedad, conductividad, pH y nutrientes (nitrógeno, fósforo y potasio) en sus
- * respectivas regiones de la pantalla.
+ * correspondientes en la pantalla TFT.
  *
  * @param soil_data Puntero a la estructura SoilData_t que contiene los datos del suelo.
- * @param tft_elements Puntero a la estructura TFTElements_t que contiene la configuración
- *                     y elementos de la pantalla TFT.
+ * @param tft_elements Puntero a la estructura TFTElements_t.
+ * @param blink_state Estado actual del parpadeo (true=visible, false=invisible)
  */
-static void SoilDataToTFT(SoilData_t* soil_data, TFTElements_t* tft_elements)
+static void SoilDataToTFT(SoilData_t* soil_data, TFTElements_t* tft_elements, bool blink_state)
 {
     char temp_data_buffer[40];
-    if (soil_data->status == 1)
+
+    if (soil_data != NULL && soil_data->status == 1)
     {
+        // Sensor de suelo activo y funcionando
         draw_icon(&tft_elements->tft_config, tft_region_coords[SOIL_SENSOR_ICON_REGION].x1,
-                  tft_region_coords[SOIL_SENSOR_ICON_REGION].y1, SOIL_SENSOR_ICON, ST7735_CYAN);
+                  tft_region_coords[SOIL_SENSOR_ICON_REGION].y1, SOIL_SENSOR_ICON, ST7735_GREEN);
+
+        // Mostrar todos los datos del suelo con el formato original
+        sprintf(temp_data_buffer, "T: %.1f", soil_data->temperature);
+        write_tft_data(&tft_elements->tft_config, temp_data_buffer,
+                       &tft_region_coords[TEMPERATURE_REGION], ST7735_BLACK, ST7735_LIME,
+                       Font_7x10);
+
+        sprintf(temp_data_buffer, "H: %.1f", soil_data->moisture);
+        write_tft_data(&tft_elements->tft_config, temp_data_buffer,
+                       &tft_region_coords[HUMIDITY_REGION], ST7735_BLACK, ST7735_LIME, Font_7x10);
+
+        sprintf(temp_data_buffer, "C: %d", (uint16_t)soil_data->conductivity);
+        write_tft_data(&tft_elements->tft_config, temp_data_buffer,
+                       &tft_region_coords[CONDUCTIVITY_REGION], ST7735_BLACK, ST7735_LIME,
+                       Font_7x10);
+
+        sprintf(temp_data_buffer, "pH: %.1f", soil_data->pH);
+        write_tft_data(&tft_elements->tft_config, temp_data_buffer, &tft_region_coords[PH_REGION],
+                       ST7735_WHITE, ST7735_PURPLE, Font_7x10);
+
+        sprintf(temp_data_buffer, "N: %d", soil_data->nitrogen);
+        write_tft_data(&tft_elements->tft_config, temp_data_buffer,
+                       &tft_region_coords[NITROGEN_REGION], ST7735_BLACK, ST7735_GOLD, Font_7x10);
+
+        sprintf(temp_data_buffer, "P: %d", soil_data->phosphorus);
+        write_tft_data(&tft_elements->tft_config, temp_data_buffer,
+                       &tft_region_coords[PHOSPHORUS_REGION], ST7735_BLACK, ST7735_GOLD, Font_7x10);
+
+        sprintf(temp_data_buffer, "K: %d", soil_data->potassium);
+        write_tft_data(&tft_elements->tft_config, temp_data_buffer,
+                       &tft_region_coords[POTASSIUM_REGION], ST7735_BLACK, ST7735_GOLD, Font_7x10);
     }
     else
     {
-        static TickType_t last_toggle_time = 0;
-        TickType_t current_time = xTaskGetTickCount();
-        static bool toggle = false;
-
-        if ((current_time - last_toggle_time) >= pdMS_TO_TICKS(100))
-        {
-            toggle = !toggle;
-            last_toggle_time = current_time;
-        }
-
-        uint16_t color = toggle ? ST7735_RED : ST7735_BLACK;
+        // Sensor de suelo inactivo o sin datos válidos
+        uint16_t color = blink_state ? ST7735_RED : ST7735_BLACK;
         draw_icon(&tft_elements->tft_config, tft_region_coords[SOIL_SENSOR_ICON_REGION].x1,
-                  tft_region_coords[SOIL_SENSOR_ICON_REGION].y1, SOIL_SENSOR_ICON, ST7735_RED);
+                  tft_region_coords[SOIL_SENSOR_ICON_REGION].y1, SOIL_SENSOR_ICON, color);
+
+        // Mostrar valores predeterminados con el formato original
+        write_tft_data(&tft_elements->tft_config, "T: ---", &tft_region_coords[TEMPERATURE_REGION],
+                       ST7735_RED, ST7735_BLACK, Font_7x10);
+
+        write_tft_data(&tft_elements->tft_config, "H: ---", &tft_region_coords[HUMIDITY_REGION],
+                       ST7735_RED, ST7735_BLACK, Font_7x10);
+
+        write_tft_data(&tft_elements->tft_config, "C: ---", &tft_region_coords[CONDUCTIVITY_REGION],
+                       ST7735_RED, ST7735_BLACK, Font_7x10);
+
+        write_tft_data(&tft_elements->tft_config, "pH: ---", &tft_region_coords[PH_REGION],
+                       ST7735_RED, ST7735_BLACK, Font_7x10);
+
+        write_tft_data(&tft_elements->tft_config, "N: ---", &tft_region_coords[NITROGEN_REGION],
+                       ST7735_RED, ST7735_BLACK, Font_7x10);
+
+        write_tft_data(&tft_elements->tft_config, "P: ---", &tft_region_coords[PHOSPHORUS_REGION],
+                       ST7735_RED, ST7735_BLACK, Font_7x10);
+
+        write_tft_data(&tft_elements->tft_config, "K: ---", &tft_region_coords[POTASSIUM_REGION],
+                       ST7735_RED, ST7735_BLACK, Font_7x10);
     }
-    // Write temperature
-    sprintf(temp_data_buffer, "T: %.1f", soil_data->temperature);
-    write_tft_data(&tft_elements->tft_config, temp_data_buffer,
-                   &tft_region_coords[TEMPERATURE_REGION], ST7735_WHITE, ST7735_BLACK, Font_7x10);
-    // Write humidity
-    sprintf(temp_data_buffer, "H: %d", (uint8_t)soil_data->moisture);
-    write_tft_data(&tft_elements->tft_config, temp_data_buffer, &tft_region_coords[HUMIDITY_REGION],
-                   ST7735_WHITE, ST7735_BLACK, Font_7x10);
-    // Write conductivity
-    sprintf(temp_data_buffer, "C: %d", (uint16_t)soil_data->conductivity);
-    write_tft_data(&tft_elements->tft_config, temp_data_buffer,
-                   &tft_region_coords[CONDUCTIVITY_REGION], ST7735_WHITE, ST7735_BLACK, Font_7x10);
-    // Write pH
-    sprintf(temp_data_buffer, "pH: %.1f", soil_data->pH);
-    write_tft_data(&tft_elements->tft_config, temp_data_buffer, &tft_region_coords[PH_REGION],
-                   ST7735_WHITE, ST7735_BLACK, Font_7x10);
-    // Write nutrients
-    sprintf(temp_data_buffer, "N: %d", soil_data->nitrogen);
-    write_tft_data(&tft_elements->tft_config, temp_data_buffer, &tft_region_coords[NITROGEN_REGION],
-                   ST7735_WHITE, ST7735_BLACK, Font_7x10);
-    sprintf(temp_data_buffer, "P: %d", soil_data->phosphorus);
-    write_tft_data(&tft_elements->tft_config, temp_data_buffer,
-                   &tft_region_coords[PHOSPHORUS_REGION], ST7735_WHITE, ST7735_BLACK, Font_7x10);
-    sprintf(temp_data_buffer, "K: %d", soil_data->potassium);
-    write_tft_data(&tft_elements->tft_config, temp_data_buffer,
-                   &tft_region_coords[POTASSIUM_REGION], ST7735_WHITE, ST7735_BLACK, Font_7x10);
 }

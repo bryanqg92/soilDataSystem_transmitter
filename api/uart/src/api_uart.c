@@ -1,7 +1,7 @@
 #include "api_uart.h"
 #include "driver/uart.h"
 #include "esp_err.h"
-#include "logger.h"
+#include "esp_log.h"
 
 #define UART_TAG "UART_API"
 
@@ -27,7 +27,7 @@ esp_err_t uart_write_data(uart_t* uart, const uint8_t* request, size_t request_s
         ESP_LOGE(UART_TAG, "Error al escribir datos en UART %d", uart->uart_num);
         return ESP_FAIL;
     }
-    ESP_LOGI(UART_TAG, "%d bytes escritos en UART %d", bytes_written, uart->uart_num);
+    ESP_LOGD(UART_TAG, "%d bytes escritos en UART %d", bytes_written, uart->uart_num);
     return ESP_OK;
 }
 
@@ -59,12 +59,11 @@ esp_err_t uart_read_data(uart_t* uart, uint8_t* response, size_t response_size, 
     {
 
         response[len] = '\0';
-        ESP_LOGI(UART_TAG, "%d bytes leídos de UART %d", len, uart->uart_num);
+        ESP_LOGD(UART_TAG, "%d bytes leídos de UART %d", len, uart->uart_num);
     }
     else
     {
-
-        ESP_LOGE(UART_TAG, "Error al leer datos de UART %d", uart->uart_num);
+        ESP_LOGD(UART_TAG, "Error al leer datos de UART %d", uart->uart_num);
         return ESP_FAIL;
     }
 

@@ -1,15 +1,20 @@
 #ifndef SHARED_DATA_H
 #define SHARED_DATA_H
 
+#include "HT_st7735.h"
+#include "api_gnss.h"
 #include "api_uart.h"
 #include "tft_spi_handler.h"
+
 #define GNSS_MAX_MESSAGE_SIZE 2000
-#define GNSS_TIMEOUT_MS 1000
+#define GNSS_TIMEOUT_MS 100
 
 /**
  * @struct SoilData_t
  * @brief Structure to hold various soil sensor measurements
  */
+
+#pragma pack(push, 1)
 typedef struct
 {
     float temperature;
@@ -23,6 +28,7 @@ typedef struct
     uint8_t status;
 
 } SoilData_t;
+#pragma pack(pop)
 
 typedef struct
 {

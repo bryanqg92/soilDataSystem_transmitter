@@ -1,6 +1,6 @@
 #include "api_uart.h"
 #include "app.h"
-#include "logger.h"
+#include "esp_log.h"
 #include <string.h>
 
 /**
@@ -33,30 +33,37 @@ void Task_GNSSData(void* pvParameters)
 
     while (1)
     {
+        ESP_LOGD(GNSS_READER, "************ Reading GNSS data *************");
         memset(&gnssContext.gnssData, 0, sizeof(GNSSData_t));
         err = uart_read_data(&gnssContext.gnss_port, gnss_buffer, GNSS_MAX_MESSAGE_SIZE - 1,
                              GNSS_TIMEOUT_MS);
-        // ESP_LOGI(GNSS_READER, "%s", (char*)gnss_buffer);
+        ESP_LOGD(GNSS_READER, "%s", (char*)gnss_buffer);
+
         if (err == ESP_OK)
         {
             if (parse_gnss_buffer(gnss_buffer, strlen((char*)gnss_buffer), &gnssContext.gnssData))
             {
-
-                // enviar a la cola
-                if (xQueueSend(xQueueGNSSData, &gnssContext.gnssData, 0) != pdPASS)
+                if (xQueueSend(xQueueGNSSData, &gnssContext.gnssData, portMAX_DELAY) != pdPASS)
                 {
                     ESP_LOGE(GNSS_READER, "Failed to send GNSS data to queue");
                 }
-                ESP_LOGI(GNSS_READER, "Lat: %.6f, Lon: %.6f, Alt: %.2f",
+
+                ESP_LOGD(GNSS_READER, "Lat: %.6f, Lon: %.6f, Alt: %.2f",
                          gnssContext.gnssData.latitude, gnssContext.gnssData.longitude,
                          gnssContext.gnssData.altitude);
-                ESP_LOGI(GNSS_READER, "Date: %02d/%02d/%d Time: %02d:%02d, Sats: %d, Fix: %d",
+                ESP_LOGD(GNSS_READER, "Date: %02d/%02d/%d Time: %02d:%02d, Sats: %d, Fix: %d",
                          gnssContext.gnssData.day, gnssContext.gnssData.month,
                          gnssContext.gnssData.year, gnssContext.gnssData.hour,
                          gnssContext.gnssData.minute, gnssContext.gnssData.satellites_used,
                          gnssContext.gnssData.fix_status);
             }
         }
+        else
+        {
+            ESP_LOGE(GNSS_READER, "Error reading GNSS data: %s", esp_err_to_name(err));
+        }
+        // enviar a la cola
+
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }

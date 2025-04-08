@@ -2,7 +2,7 @@
 #include "api_uart.h"
 #include "app.h"
 #include "esp_err.h"
-#include "logger.h"
+#include "esp_log.h"
 #include "shared_data.h"
 #include <string.h>
 
@@ -53,7 +53,7 @@ bool NPKInit(uart_t* uart)
 
     if (!validate_response(response_buffer, INIT_RESPONSE_SIZE - 1))
     {
-        ESP_LOGI(TAG, "%02x %02x %02x %02x %02x %02x %02x %02x", response_buffer[0],
+        ESP_LOGD(TAG, "%02x %02x %02x %02x %02x %02x %02x %02x", response_buffer[0],
                  response_buffer[1], response_buffer[2], response_buffer[3], response_buffer[4],
                  response_buffer[5], response_buffer[6], response_buffer[7]);
         ESP_LOGE(TAG, "CRC INITIALIZATION FAILED");
@@ -94,18 +94,6 @@ static bool send_request_and_receive_response(uart_t* uart, const uint8_t* reque
     // Use the UART handler to read data
     npk_u = uart_read_data(uart, response_buffer, response_size, 1000 / portTICK_PERIOD_MS);
 
-#if LOG_APP
-
-    char log_buffer[128];
-    int offset = 0;
-    for (int i = 0; i < response_size; i++)
-    {
-        offset +=
-            snprintf(log_buffer + offset, sizeof(log_buffer) - offset, "%02X ", response_buffer[i]);
-    }
-
-#endif
-    ESP_LOGI(TAG, "Response bytes: %s", log_buffer);
     if (ESP_OK != npk_u)
     {
         ESP_LOGE(TAG, "Error receiving response: %s", esp_err_to_name(npk_u));
@@ -208,7 +196,7 @@ void Task_processData(void* soilData)
 
         // send data to queue
         parse_soil_data(response_buffer, sensor_data);
-        ESP_LOGI(TAG,
+        ESP_LOGD(TAG,
                  "Soil Data - Moisture: %.1f%%, Temperature: %.1f°C, Conductivity: %d, pH: %.1f, "
                  "N: %d, P: %d, K: %d",
                  sensor_data->moisture, sensor_data->temperature, sensor_data->conductivity,

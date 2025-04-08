@@ -4,3 +4,13 @@
 /latex/
 /.vscode/
 /.devcontainer/
+/.metadata/
+/CMakeFiles/
+.clang-format
+/config/
+kconfig*
+sdkconfig
+sdkconfig.old
+sdkconfig.defaults
+
+

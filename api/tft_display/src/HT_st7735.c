@@ -1,7 +1,7 @@
 #include "HT_st7735.h"
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
-#include "logger.h"
+#include "esp_log.h"
 #include <string.h>
 
 static const char* TFT_STT35 = "ST7735";
@@ -265,21 +265,21 @@ void st7735_init(ST7735_Config* config)
     st7735_reset(config);
 
     // Ejecuta la primera serie de comandos de inicialización
-    ESP_LOGI(TFT_STT35, "Ejecutando init_cmds1...");
+    ESP_LOGD(TFT_STT35, "Ejecutando init_cmds1...");
     st7735_execute_cmd_list(config, init_cmds1);
 
     // Ejecuta la segunda serie de comandos de inicialización
-    ESP_LOGI(TFT_STT35, "Ejecutando init_cmds2...");
+    ESP_LOGD(TFT_STT35, "Ejecutando init_cmds2...");
     st7735_execute_cmd_list(config, init_cmds2);
 
     // Ejecuta la tercera serie de comandos de inicialización
-    ESP_LOGI(TFT_STT35, "Ejecutando init_cmds3...");
+    ESP_LOGD(TFT_STT35, "Ejecutando init_cmds3...");
     st7735_execute_cmd_list(config, init_cmds3);
 
     // Deselecciona el dispositivo ST7735
     st7735_unselect(config);
 
-    ESP_LOGI(TFT_STT35, "Pantalla inicializada");
+    ESP_LOGD(TFT_STT35, "Pantalla inicializada");
 }
 
 /**

@@ -9,13 +9,13 @@ typedef struct
 {
     spi_device_handle_t spi_handle;
     spi_host_device_t host;
-    int lora_mosi_pin;
-    int lora_miso_pin;
-    int lora_sck_pin;
-    int lora_nss_pin;
-    int lora_rst_pin;
-    int lora_dio1_pin;
-    int lora_busy_pin;
+    uint8_t lora_mosi_pin;
+    uint8_t lora_miso_pin;
+    uint8_t lora_sck_pin;
+    uint8_t lora_nss_pin;
+    uint8_t lora_rst_pin;
+    uint8_t lora_dio1_pin;
+    uint8_t lora_busy_pin;
 
 } lora_config_t;
 lora_config_t lora_spi_init(void);
