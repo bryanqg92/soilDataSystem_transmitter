@@ -4,6 +4,7 @@
 
 #include "api_debounce.h"
 #include "app.h"
+#include "battery_monitor.h"
 #include "buttons_manager.h"
 #include "gnss_reader.h"
 #include "lora_manager.h"
@@ -13,14 +14,14 @@
 #include "tft_manager.h"
 
 #include "driver/gpio.h"
+#include "esp_adc/adc_oneshot.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-
-#define VGNSS_CTRL 3
 
 static const char* APP = "==> APP";
 BaseType_t ret;
 
+static void battery_app_init(void);
 static void soil_sensor_init(void);
 static void gnss_sensor_init(void);
 static void tft_display_init(void);
@@ -77,6 +78,7 @@ void app_init(void)
     vQueueAddToRegistry(xQueueGNSSData, "GNSSData");
     vQueueAddToRegistry(xQueueSoilData, "SoilData");
 
+    battery_monitor_init();
     gnss_sensor_init();
     tft_display_init();
     soil_sensor_init();
@@ -126,8 +128,9 @@ static void soil_sensor_init(void)
 static void gnss_sensor_init(void)
 {
 
-    gpio_set_direction(VGNSS_CTRL, GPIO_MODE_OUTPUT);
-    gpio_set_level(VGNSS_CTRL, 1);
+    gpio_set_direction(VEXT_CTRL, GPIO_MODE_OUTPUT);
+    gpio_set_level(VEXT_CTRL, 1);
+    gpio_set_direction(LED_INDICATOR, GPIO_MODE_OUTPUT);
 
     gnssContext.gnss_port = init_gnss_uart();
 

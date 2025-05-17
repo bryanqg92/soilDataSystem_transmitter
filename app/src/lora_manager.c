@@ -1,5 +1,7 @@
 #include "lora_manager.h"
+#include "app.h"
 #include "config.h"
+#include "driver/gpio.h"
 #include "esp_log.h"
 #include "lora_api.h"
 #include "stdio.h"
@@ -23,13 +25,14 @@ esp_err_t lora_set_config(lora_config_t* dev)
 esp_err_t lora_send_all_data(lora_config_t* dev, SoilData_t* soilData, GNSSData_t* gnssData,
                              bool category)
 {
+    gpio_set_level(LED_INDICATOR, 1);
     if (soilData == NULL || gnssData == NULL)
     {
         ESP_LOGE("LORA", "Invalid data pointers");
         return ESP_ERR_INVALID_ARG;
     }
 
-    uint8_t data_buffer[40]; // Tamaño exacto
+    uint8_t data_buffer[39]; // Tamaño exacto
     int offset = 0;
 
     // 📌 SoilData
@@ -84,5 +87,6 @@ esp_err_t lora_send_all_data(lora_config_t* dev, SoilData_t* soilData, GNSSData_
         return ESP_FAIL;
     }
     ESP_LOGI("LORA", "LoRa packet sent successfully (%d bytes)", offset);
+    gpio_set_level(LED_INDICATOR, 0);
     return ESP_OK;
 }

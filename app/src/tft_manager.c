@@ -1,6 +1,7 @@
 #include "tft_manager.h"
 #include "HT_st7735.h"
 #include "app.h"
+#include "battery_monitor.h"
 #include "esp_log.h"
 
 #define ICON_WIDTH 7
@@ -17,6 +18,32 @@ typedef struct
 const char* TFT_DISPLAY = "==> TFT DISPLAY";
 static const uint16_t SOIL_SENSOR_ICON[] = {0X0D, 0X69, 0X5A, 0X2C, 0X08, 0X08, 0X08, 0X2A, 0X7F};
 static const uint16_t GPS_ICON[] = {0x1C, 0x3E, 0x7F, 0x63, 0x63, 0X77, 0X3E, 0X1C, 0X08, 0X08};
+
+static const uint16_t ICON_BATTERY_EMPTY[10] = {
+    0b0111111111111100, 0b1100000000000100, 0b1100000000000100, 0b1100000000000111,
+    0b1100000000000111, 0b1100000000000111, 0b1100000000000100, 0b1100000000000100,
+    0b1100000000000100, 0b0111111111111100};
+
+static const uint16_t ICON_BATTERY_FULL[10] = {
+    0b0111111111111100, 0b1100000000000100, 0b1101101101100100, 0b1101101101100111,
+    0b1101101101100111, 0b1101101101100111, 0b1101101101100100, 0b1101101101100100,
+    0b1100000000000100, 0b0111111111111100};
+
+static const uint16_t ICON_BATTERY_MEDIUM[10] = {
+    0b0111111111111100, 0b1100000000000100, 0b1101101100000100, 0b1101101100000111,
+    0b1101101100000111, 0b1101101100000111, 0b1101101100000100, 0b1101101100000100,
+    0b1100000000000100, 0b0111111111111100};
+
+static const uint16_t ICON_BATTERY_LOW[10] = {
+    0b0111111111111100, 0b1100000000000100, 0b1101100000000100, 0b1101100000000111,
+    0b1101100000000111, 0b1101100000000111, 0b1101100000000100, 0b1101100000000100,
+    0b1100000000000100, 0b0111111111111100};
+
+// static const uint16_t ICON_BATTERY_CHARGING[10] = {
+//     0b0111111111111100, 0b1100000000000100, 0b1100000001100100, 0b1100000110000111,
+//     0b1100011000000111, 0b1100000110000111, 0b1100011000000100, 0b1101100000000100,
+//     0b1100000000000100, 0b0111111111111100};
+
 // static const uint16_t LORA_ICON[] = {0X22,0X49,0X49,0X22,0X00,0X08,0X08,0X08,0X1C,0X3E};
 
 /**
@@ -67,7 +94,7 @@ const tft_cords_t tft_region_coords[TFT_REGION_COUNT] = {
     [LORA_ICON_REGION] = {.x1 = 59, .y1 = 1, .x2 = 72, .y2 = 20},
     [DATE_REGION] = {.x1 = 70, .y1 = 1, .x2 = 150, .y2 = 10},
     [TIME_REGION] = {.x1 = 70, .y1 = 11, .x2 = 150, .y2 = 20},
-    [BATTERY_REGION] = {.x1 = 151, .y1 = 1, .x2 = 160, .y2 = 20},
+    [BATTERY_REGION] = {.x1 = 145, .y1 = 1, .x2 = 160, .y2 = 20},
     [ALTITUDE_REGION] = {.x1 = 1, .y1 = 21, .x2 = 60, .y2 = 30},
     [PH_REGION] = {.x1 = 1, .y1 = 31, .x2 = 60, .y2 = 40},
     [LATITUDE_REGION] = {.x1 = 61, .y1 = 21, .x2 = 160, .y2 = 30},
@@ -80,13 +107,14 @@ const tft_cords_t tft_region_coords[TFT_REGION_COUNT] = {
     [POTASSIUM_REGION] = {.x1 = 55, .y1 = 65, .x2 = 140, .y2 = 80}};
 
 static void draw_icon(ST7735_Config* config, uint16_t x, uint16_t y, const uint16_t* icon,
-                      uint16_t color);
+                      uint16_t color, uint16_t width, uint16_t height);
 static void write_tft_data(ST7735_Config* config, const char* data, const tft_cords_t* cords,
                            uint16_t color, uint16_t bgcolor, FontDef font);
 static void GNSSDataToTFT(GNSSData_t* gnss_data, TFTElements_t* tft_elements, bool blink_state);
 static void SoilDataToTFT(SoilData_t* soil_data, TFTElements_t* tft_elements, bool blink_state);
 static bool validate_soil_data(SoilData_t* soil_data);
 static bool validate_gnss_data(GNSSData_t* gnss_data);
+static void battery_icon(ST7735_Config* config);
 
 void Task_TFTDisplay(void* pvParameters)
 {
@@ -113,9 +141,17 @@ void Task_TFTDisplay(void* pvParameters)
     st7735_init(&tft_elements->tft_config);
     st7735_fill_screen(&tft_elements->tft_config, ST7735_BLACK);
     ESP_LOGI(TFT_DISPLAY, "TFT display initialized successfully");
+    uint8_t refresh_counter = 100;
 
     while (1)
     {
+        if (++refresh_counter >= 60)
+        {
+            st7735_clear(&tft_elements->tft_config);
+            refresh_counter = 0;
+            battery_icon(&tft_elements->tft_config);
+        }
+
         // Actualizar estado de parpadeo cada 500ms
         TickType_t current_time = xTaskGetTickCount();
         if ((current_time - last_blink_time) >= pdMS_TO_TICKS(500))
@@ -230,14 +266,14 @@ static bool validate_gnss_data(GNSSData_t* gnss_data)
  * @param color Color que se usará para los píxeles del ícono.
  */
 static void draw_icon(ST7735_Config* config, uint16_t x, uint16_t y, const uint16_t* icon,
-                      uint16_t color)
+                      uint16_t color, uint16_t width, uint16_t height)
 {
-    for (int i = 0; i < ICON_HEIGHT; i++)
+    for (int i = 0; i < height; i++)
     {
         uint16_t line = icon[i];
-        for (int j = 0; j < ICON_WIDTH; j++)
+        for (int j = 0; j < width; j++)
         {
-            if (line & (1 << j))
+            if (line & (1 << (width - 1 - j)))
             {
                 st7735_draw_pixel(config, x + j, y + i, color);
             }
@@ -291,7 +327,8 @@ static void GNSSDataToTFT(GNSSData_t* gnss_data, TFTElements_t* tft_elements, bo
     {
         // Dibujar ícono GPS fijo (verde)
         draw_icon(&tft_elements->tft_config, tft_region_coords[GPS_ICON_REGION].x1,
-                  tft_region_coords[GPS_ICON_REGION].y1, GPS_ICON, ST7735_GREEN);
+                  tft_region_coords[GPS_ICON_REGION].y1, GPS_ICON, ST7735_GREEN, ICON_WIDTH,
+                  ICON_HEIGHT);
 
         // Mostrar fecha y hora
         sprintf(temp_data_buffer, "%02d/%02d/%d", gnss_data->day, gnss_data->month,
@@ -304,7 +341,7 @@ static void GNSSDataToTFT(GNSSData_t* gnss_data, TFTElements_t* tft_elements, bo
                        ST7735_WHITE, ST7735_NAVY, Font_7x10);
 
         // Mostrar altitud
-        sprintf(temp_data_buffer, "A: %.1f", gnss_data->altitude);
+        sprintf(temp_data_buffer, "A: %d", (uint16_t)gnss_data->altitude);
         write_tft_data(&tft_elements->tft_config, temp_data_buffer,
                        &tft_region_coords[ALTITUDE_REGION], ST7735_WHITE, ST7735_NAVY, Font_7x10);
 
@@ -314,7 +351,7 @@ static void GNSSDataToTFT(GNSSData_t* gnss_data, TFTElements_t* tft_elements, bo
                        &tft_region_coords[LATITUDE_REGION], ST7735_WHITE, ST7735_NAVY, Font_7x10);
 
         // Mostrar longitud
-        sprintf(temp_data_buffer, "Lon: %.6f", gnss_data->longitude);
+        sprintf(temp_data_buffer, "Lon:%.6f", gnss_data->longitude);
         write_tft_data(&tft_elements->tft_config, temp_data_buffer,
                        &tft_region_coords[LONGITUDE_REGION], ST7735_WHITE, ST7735_NAVY, Font_7x10);
     }
@@ -323,7 +360,7 @@ static void GNSSDataToTFT(GNSSData_t* gnss_data, TFTElements_t* tft_elements, bo
         // Sin fix GPS, parpadear ícono rojo
         uint16_t color = blink_state ? ST7735_RED : ST7735_BLACK;
         draw_icon(&tft_elements->tft_config, tft_region_coords[GPS_ICON_REGION].x1,
-                  tft_region_coords[GPS_ICON_REGION].y1, GPS_ICON, color);
+                  tft_region_coords[GPS_ICON_REGION].y1, GPS_ICON, color, ICON_WIDTH, ICON_HEIGHT);
 
         // Mostrar valores predeterminados
         write_tft_data(&tft_elements->tft_config, "--/--/----", &tft_region_coords[DATE_REGION],
@@ -357,7 +394,8 @@ static void SoilDataToTFT(SoilData_t* soil_data, TFTElements_t* tft_elements, bo
     {
         // Sensor de suelo activo y funcionando
         draw_icon(&tft_elements->tft_config, tft_region_coords[SOIL_SENSOR_ICON_REGION].x1,
-                  tft_region_coords[SOIL_SENSOR_ICON_REGION].y1, SOIL_SENSOR_ICON, ST7735_GREEN);
+                  tft_region_coords[SOIL_SENSOR_ICON_REGION].y1, SOIL_SENSOR_ICON, ST7735_GREEN,
+                  ICON_WIDTH, ICON_HEIGHT);
 
         // Mostrar todos los datos del suelo con el formato original
         sprintf(temp_data_buffer, "T: %.1f", soil_data->temperature);
@@ -395,7 +433,8 @@ static void SoilDataToTFT(SoilData_t* soil_data, TFTElements_t* tft_elements, bo
         // Sensor de suelo inactivo o sin datos válidos
         uint16_t color = blink_state ? ST7735_RED : ST7735_BLACK;
         draw_icon(&tft_elements->tft_config, tft_region_coords[SOIL_SENSOR_ICON_REGION].x1,
-                  tft_region_coords[SOIL_SENSOR_ICON_REGION].y1, SOIL_SENSOR_ICON, color);
+                  tft_region_coords[SOIL_SENSOR_ICON_REGION].y1, SOIL_SENSOR_ICON, color,
+                  ICON_WIDTH, ICON_HEIGHT);
 
         // Mostrar valores predeterminados con el formato original
         write_tft_data(&tft_elements->tft_config, "T: ---", &tft_region_coords[TEMPERATURE_REGION],
@@ -418,5 +457,35 @@ static void SoilDataToTFT(SoilData_t* soil_data, TFTElements_t* tft_elements, bo
 
         write_tft_data(&tft_elements->tft_config, "K: ---", &tft_region_coords[POTASSIUM_REGION],
                        ST7735_RED, ST7735_BLACK, Font_7x10);
+    }
+}
+
+static void battery_icon(ST7735_Config* config)
+{
+    battery_level_t level = battery_monitor_update();
+    switch (level)
+    {
+    case BATTERY_VERY_LOW:
+        draw_icon(config, tft_region_coords[BATTERY_REGION].x1,
+                  tft_region_coords[BATTERY_REGION].y1, ICON_BATTERY_EMPTY, ST7735_RED, 16,
+                  ICON_HEIGHT);
+        break;
+    case BATTERY_LOW:
+        draw_icon(config, tft_region_coords[BATTERY_REGION].x1,
+                  tft_region_coords[BATTERY_REGION].y1, ICON_BATTERY_LOW, ST7735_ORANGE, 16,
+                  ICON_HEIGHT);
+        break;
+    case BATTERY_MEDIUM:
+        draw_icon(config, tft_region_coords[BATTERY_REGION].x1,
+                  tft_region_coords[BATTERY_REGION].y1, ICON_BATTERY_MEDIUM, ST7735_YELLOW, 16,
+                  ICON_HEIGHT);
+        break;
+    case BATTERY_FULL:
+        draw_icon(config, tft_region_coords[BATTERY_REGION].x1,
+                  tft_region_coords[BATTERY_REGION].y1, ICON_BATTERY_FULL, ST7735_GREEN, 16,
+                  ICON_HEIGHT);
+        break;
+    default:
+        break;
     }
 }

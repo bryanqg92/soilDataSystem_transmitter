@@ -16,7 +16,7 @@ typedef struct
     uint16_t year;
     uint8_t satellites_used;
     float altitude;
-    uint8_t fix_status;
+    uint8_t fix_status; // 0: No fix, 1: Fix
 } GNSSData_t;
 #pragma pack(pop)
 

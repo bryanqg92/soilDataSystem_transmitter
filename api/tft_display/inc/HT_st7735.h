@@ -276,6 +276,7 @@ void st7735_invert_colors(ST7735_Config* config, bool invert);
 void st7735_draw_pixel(ST7735_Config* config, uint16_t x, uint16_t y, uint16_t color);
 void st7735_fill_rectangle(ST7735_Config* config, uint16_t x, uint16_t y, uint16_t w, uint16_t h,
                            uint16_t color);
+void st7735_clear(ST7735_Config* config);
 void st7735_fill_screen(ST7735_Config* config, uint16_t color);
 void st7735_draw_image(ST7735_Config* config, uint16_t x, uint16_t y, uint16_t w, uint16_t h,
                        const uint16_t* data);

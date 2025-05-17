@@ -1,12 +1,13 @@
 #include "buttons_manager.h"
 #include "app.h"
+#include "battery_monitor.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "lora_manager.h"
+#include "power_manager.h"
 #include "shared_data.h"
-
 const char* BUTTONS = "==> [BUTTONS]";
 
 #define LONG_PRESS_TIME 1000
@@ -66,13 +67,8 @@ void Task_buttons(void* pvParameters)
                 pressStartTimeCat0 = 0;
             }
         }
-        else
-        {
-            pressStartTimeCat0 = 0;
-        }
-
-        if (BUTTON_DOWN == buttons->cat1_btn->buttonState &&
-            BUTTON_UP == buttons->cat0_btn->buttonState)
+        else if (BUTTON_DOWN == buttons->cat1_btn->buttonState &&
+                 BUTTON_UP == buttons->cat0_btn->buttonState)
         {
             if (pressStartTimeCat1 == 0)
             {
@@ -89,6 +85,20 @@ void Task_buttons(void* pvParameters)
                     ESP_LOGD(BUTTONS, "Datos enviados correctamente");
                 }
                 pressStartTimeCat1 = 0; // Reset press start time
+            }
+        }
+        else if ((BUTTON_DOWN == buttons->cat1_btn->buttonState &&
+                  BUTTON_DOWN == buttons->cat0_btn->buttonState) ||
+                 sleep_mode == true)
+        {
+            if (pressStartTimeCat1 == 0)
+            {
+                pressStartTimeCat1 = xTaskGetTickCount();
+            }
+            else if ((xTaskGetTickCount() - pressStartTimeCat1) >= pdMS_TO_TICKS(LONG_PRESS_TIME))
+            {
+                pressStartTimeCat1 = 0; // Reset press start time
+                enter_low_power_mode();
             }
         }
         else

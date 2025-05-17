@@ -9,6 +9,11 @@
 #include "shared_data.h"
 #include "tft_spi_handler.h"
 
+#define VEXT_CTRL 3
+#define CAT0_BUTTON_GPIO 37
+#define CAT1_BUTTON_GPIO 26
+#define LED_INDICATOR 18
+
 extern QueueHandle_t xQueueGNSSData; // cola para los datos del GNSS
 extern QueueHandle_t xQueueSoilData; // cola para los datos del sensor de humedad
 extern SemaphoreHandle_t xSemaphoreData;

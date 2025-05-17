@@ -9,8 +9,6 @@
 #define DEBOUNCE_BTN_TIME 30u
 
 // #define MODE_BUTTON_GPIO 7
-#define CAT0_BUTTON_GPIO 37
-#define CAT1_BUTTON_GPIO 26
 
 typedef struct
 {

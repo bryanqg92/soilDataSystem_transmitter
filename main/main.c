@@ -19,6 +19,7 @@ static const char* MAIN_TAG = "[MAIN]";
 
 void app_main(void)
 {
+
     init_log_config(ESP_LOG_INFO);
     ESP_LOGI(MAIN_TAG, "Iniciando aplicación");
     app_init();

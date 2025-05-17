@@ -430,6 +430,21 @@ void st7735_fill_rectangle(ST7735_Config* config, uint16_t x, uint16_t y, uint16
 
     st7735_unselect(config);
 }
+void st7735_clear(ST7735_Config* config)
+{
+    st7735_select(config);
+    st7735_set_address_window(config, 0, 0, config->width - 1, config->height - 1);
+
+    gpio_set_level(config->dc_pin, 1);
+
+    uint8_t data[] = {ST7735_BLACK >> 8, ST7735_BLACK & 0xFF};
+    for (uint32_t i = 0; i < (config->width * config->height); i++)
+    {
+        st7735_write_data(config, data, sizeof(data));
+    }
+
+    st7735_unselect(config);
+}
 
 /**
  * @brief Llena toda la pantalla con un color específico.
